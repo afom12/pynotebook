@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PyNotebook - Interactive Python Dashboard</title>
+    
+    <!-- PyScript CSS -->
+    <link rel="stylesheet" href="https://pyscript.net/releases/2024.1.1/core.css">
+    
+    <!-- PyScript JS -->
+    <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
+    
+    <!-- Alternative PyScript CDN (backup) -->
+    <script type="module">
+        // Fallback if primary CDN fails
+        if (typeof pyscript === 'undefined') {
+            console.log('Loading PyScript from alternative source...');
+        }
+    </script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary-color: #00c896;
+            --secondary-color: #ff6b35;
+            --accent-color: #f7931e;
+            --dark-bg: #1a1a1a;
+            --darker-bg: #0f0f0f;
+            --light-bg: #2a2a2a;
+            --text-primary: #ffffff;
+            --text-secondary: #b0b0b0;
+            --border-color: #3a3a3a;
+            --success-color: #00ff88;
+            --warning-color: #ffaa00;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--darker-bg) 0%, var(--dark-bg) 100%);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .header {
+            background: rgba(26, 26, 26, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 1.5rem 2rem;
+            border-bottom: 2px solid var(--primary-color);
+            box-shadow: 0 4px 20px rgba(0, 200, 150, 0.2);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 700;
+            display: inline-block;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 1024px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--light-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 200, 150, 0.2);
+        }
+
+        .card h2 {
+            color: var(--primary-color);
+            margin-bottom: 1rem;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card.full-width {
+            grid-column: 1 / -1;
+        }
+
+        .code-editor {
+            width: 100%;
+            min-height: 300px;
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            color: var(--text-primary);
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), #00a876);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #00a876, var(--primary-color));
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(0, 200, 150, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, var(--secondary-color), #e55a2b);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #e55a2b, var(--secondary-color));
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);
+        }
+
+        .btn-accent {
+            background: linear-gradient(135deg, var(--accent-color), #d67a0a);
+            color: white;
+        }
+
+        .btn-accent:hover {
+            background: linear-gradient(135deg, #d67a0a, var(--accent-color));
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(247, 147, 30, 0.4);
+        }
+
+        .output {
+            background: var(--darker-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+            min-height: 200px;
+            max-height: 600px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin-top: 1rem;
+        }
+
+        .output pre {
+            margin: 0;
+            color: var(--text-primary);
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .canvas-container {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .status {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            display: inline-block;
+        }
+
+        .status.loading {
+            background: rgba(247, 147, 30, 0.2);
+            color: var(--accent-color);
+            border: 1px solid var(--accent-color);
+        }
+
+        .status.success {
+            background: rgba(0, 255, 136, 0.2);
+            color: var(--success-color);
+            border: 1px solid var(--success-color);
+        }
+
+        .status.error {
+            background: rgba(255, 107, 53, 0.2);
+            color: var(--secondary-color);
+            border: 1px solid var(--secondary-color);
+        }
+
+        .plot-container {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            min-height: 400px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1rem;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+        }
+
+        .tab.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .loading-spinner {
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--primary-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 2rem auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .feature-item {
+            background: rgba(0, 200, 150, 0.1);
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-color);
+        }
+
+        .feature-item h3 {
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+            font-size: 1.1rem;
+        }
+
+        .feature-item p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🐍 PyNotebook</h1>
+        <p>Interactive Python Dashboard - Run Python directly in your browser with Pyodide</p>
+    </div>
+
+    <div class="container">
+        <div class="grid">
+            <!-- Code Editor Card -->
+            <div class="card">
+                <h2>📝 Code Editor</h2>
+                <div class="tabs">
+                    <button class="tab active" onclick="switchTab('editor')">Editor</button>
+                    <button class="tab" onclick="switchTab('examples')">Examples</button>
+                </div>
+                
+                <div id="editor-tab" class="tab-content active">
+                    <textarea id="code-editor" class="code-editor" placeholder="Enter your Python code here...">import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+
+# Generate sample data
+np.random.seed(42)
+x = np.linspace(0, 10, 100)
+y = np.sin(x) + np.random.normal(0, 0.1, 100)
+
+# Create plot
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.plot(x, y, 'o-', color='#00c896', linewidth=2, markersize=4, label='Sine Wave')
+ax.set_xlabel('X Axis', fontsize=12)
+ax.set_ylabel('Y Axis', fontsize=12)
+ax.set_title('Interactive Data Visualization', fontsize=14, fontweight='bold')
+ax.grid(True, alpha=0.3)
+ax.legend()
+plt.tight_layout()
+plt.show()</textarea>
+                    <div class="button-group">
+                        <button class="btn btn-primary" onclick="runCode()">▶ Run Code</button>
+                        <button class="btn btn-secondary" onclick="clearOutput()">🗑 Clear</button>
+                        <button class="btn btn-accent" onclick="loadExample('plot')">📊 Plot Example</button>
+                    </div>
+                </div>
+                
+                <div id="examples-tab" class="tab-content">
+                    <div class="feature-grid">
+                        <div class="feature-item">
+                            <h3>📊 Data Visualization</h3>
+                            <p>Create beautiful plots with matplotlib and seaborn</p>
+                            <button class="btn btn-primary" style="margin-top: 0.5rem; padding: 0.5rem 1rem; font-size: 0.9rem;" onclick="loadExample('plot')">Load</button>
+                        </div>
+                        <div class="feature-item">
+                            <h3>📈 Data Analysis</h3>
+                            <p>Analyze data with pandas and numpy</p>
+                            <button class="btn btn-primary" style="margin-top: 0.5rem; padding: 0.5rem 1rem; font-size: 0.9rem;" onclick="loadExample('data')">Load</button>
+                        </div>
+                        <div class="feature-item">
+                            <h3>🎨 Canvas Drawing</h3>
+                            <p>Draw interactive graphics with ipycanvas</p>
+                            <button class="btn btn-primary" style="margin-top: 0.5rem; padding: 0.5rem 1rem; font-size: 0.9rem;" onclick="loadExample('canvas')">Load</button>
+                        </div>
+                        <div class="feature-item">
+                            <h3>🔢 Statistics</h3>
+                            <p>Perform statistical analysis and visualizations</p>
+                            <button class="btn btn-primary" style="margin-top: 0.5rem; padding: 0.5rem 1rem; font-size: 0.9rem;" onclick="loadExample('stats')">Load</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Output Card -->
+            <div class="card">
+                <h2>📤 Output</h2>
+                <div id="status" class="status loading">Ready to execute...</div>
+                <div id="output" class="output">
+                    <pre>Output will appear here after running your code...</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Visualization Card -->
+        <div class="card full-width">
+            <h2>📊 Visualizations</h2>
+            <div id="plot-container" class="plot-container">
+                <p style="color: #666;">Plots will appear here...</p>
+            </div>
+        </div>
+
+        <!-- Canvas Drawing Card -->
+        <div class="card full-width">
+            <h2>🎨 Interactive Canvas</h2>
+            <div class="canvas-container">
+                <canvas id="drawing-canvas" width="800" height="400" style="border: 2px solid #00c896; border-radius: 8px; cursor: crosshair;"></canvas>
+            </div>
+            <div class="button-group">
+                <button class="btn btn-primary" onclick="clearCanvas()">Clear Canvas</button>
+                <button class="btn btn-secondary" onclick="drawExample()">Draw Example</button>
+            </div>
+        </div>
+    </div>
+
+    <py-config>
+        packages = ["matplotlib", "numpy", "pandas", "seaborn", "scipy"]
+        [[runtimes]]
+        src = "https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"
+        name = "pyodide-0.25.0"
+        lang = "python"
+    </py-config>
+
+    <py-script>
+        import matplotlib
+        matplotlib.use('module://matplotlib.backends.html5_canvas_backend')
+        import matplotlib.pyplot as plt
+        import numpy as np
+        import pandas as pd
+        import seaborn as sns
+        from js import document, console
+        from pyodide.ffi import create_proxy
+        import base64
+        import io
+        
+        # Set seaborn style
+        sns.set_style("darkgrid")
+        plt.rcParams['figure.facecolor'] = 'white'
+        plt.rcParams['axes.facecolor'] = 'white'
+        plt.rcParams['savefig.facecolor'] = 'white'
+        
+        output_div = document.getElementById("output")
+        plot_container = document.getElementById("plot-container")
+        status_div = document.getElementById("status")
+        
+        # Store current figure
+        current_fig = None
+        
+        def update_status(message, status_type="loading"):
+            status_div.textContent = message
+            status_div.className = f"status {status_type}"
+        
+        def clear_output():
+            output_div.innerHTML = "<pre></pre>"
+            plot_container.innerHTML = "<p style='color: #666;'>Plots will appear here...</p>"
+            global current_fig
+            if current_fig:
+                plt.close(current_fig)
+                current_fig = None
+        
+        def display_plot(fig=None):
+            """Display matplotlib figure in the plot container"""
+            if fig is None:
+                fig = plt.gcf()
+            
+            # Convert figure to base64 image
+            buf = io.BytesIO()
+            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
+            buf.seek(0)
+            img_data = base64.b64encode(buf.read()).decode('utf-8')
+            buf.close()
+            
+            # Display in container
+            plot_container.innerHTML = f'<img src="data:image/png;base64,{img_data}" style="max-width: 100%; height: auto;" />'
+            
+            return fig
+        
+        def run_python_code(code):
+            try:
+                update_status("Executing code...", "loading")
+                clear_output()
+                
+                # Capture stdout
+                import io as io_module
+                import sys
+                old_stdout = sys.stdout
+                sys.stdout = buffer = io_module.StringIO()
+                
+                # Store original plt.show
+                original_show = plt.show
+                
+                def custom_show():
+                    """Custom plt.show that displays plots in our container"""
+                    global current_fig
+                    current_fig = plt.gcf()
+                    display_plot(current_fig)
+                    plt.close()
+                
+                plt.show = custom_show
+                
+                # Execute code
+                exec(code)
+                
+                # Restore original show
+                plt.show = original_show
+                
+                # Get output
+                output = buffer.getvalue()
+                sys.stdout = old_stdout
+                
+                if output:
+                    output_div.innerHTML = f"<pre>{output}</pre>"
+                
+                # If no plot was shown but figures exist, show the last one
+                if current_fig is None:
+                    try:
+                        fig = plt.gcf()
+                        if fig.get_axes():
+                            display_plot(fig)
+                    except:
+                        pass
+                
+                update_status("✓ Code executed successfully!", "success")
+                
+            except Exception as e:
+                error_msg = str(e)
+                output_div.innerHTML = f"<pre style='color: #ff6b35;'>Error: {error_msg}</pre>"
+                update_status(f"✗ Error: {error_msg[:50]}...", "error")
+                console.error(error_msg)
+                import traceback
+                traceback.print_exc()
+        
+        # Make functions available to JS
+        window.run_python_code = run_python_code
+        window.clear_output = clear_output
+        window.display_plot = display_plot
+    </py-script>
+
+    <script>
+        function switchTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // Show selected tab
+            if (tabName === 'editor') {
+                document.getElementById('editor-tab').classList.add('active');
+                document.querySelectorAll('.tab')[0].classList.add('active');
+            } else {
+                document.getElementById('examples-tab').classList.add('active');
+                document.querySelectorAll('.tab')[1].classList.add('active');
+            }
+        }
+
+        function runCode() {
+            const code = document.getElementById('code-editor').value;
+            if (window.run_python_code) {
+                window.run_python_code(code);
+            } else {
+                setTimeout(() => runCode(), 100);
+            }
+        }
+
+        function clearOutput() {
+            if (window.clear_output) {
+                window.clear_output();
+            }
+            document.getElementById('output').innerHTML = '<pre>Output cleared...</pre>';
+            document.getElementById('plot-container').innerHTML = '<p style="color: #666;">Plots will appear here...</p>';
+        }
+
+        function loadExample(type) {
+            const examples = {
+                plot: `import matplotlib.pyplot as plt
+import numpy as np
+
+# Generate sample data
+np.random.seed(42)
+x = np.linspace(0, 10, 100)
+y = np.sin(x) + np.random.normal(0, 0.1, 100)
+
+# Create plot
+fig, ax = plt.subplots(figsize=(10, 6))
+ax.plot(x, y, 'o-', color='#00c896', linewidth=2, markersize=4, label='Sine Wave')
+ax.set_xlabel('X Axis', fontsize=12)
+ax.set_ylabel('Y Axis', fontsize=12)
+ax.set_title('Interactive Data Visualization', fontsize=14, fontweight='bold')
+ax.grid(True, alpha=0.3)
+ax.legend()
+plt.tight_layout()
+plt.show()`,
+                
+                data: `import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+# Create sample dataset
+np.random.seed(42)
+data = {
+    'Category': np.random.choice(['A', 'B', 'C', 'D'], 100),
+    'Value1': np.random.normal(50, 15, 100),
+    'Value2': np.random.normal(60, 20, 100),
+    'Value3': np.random.normal(55, 18, 100)
+}
+df = pd.DataFrame(data)
+
+# Display data info
+print("Dataset Info:")
+print(df.head())
+print("\\nStatistics:")
+print(df.describe())
+
+# Create visualization
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+# Box plot
+sns.boxplot(data=df, x='Category', y='Value1', ax=axes[0], palette=['#00c896', '#ff6b35', '#f7931e', '#00ff88'])
+axes[0].set_title('Value Distribution by Category', fontweight='bold')
+
+# Violin plot
+sns.violinplot(data=df, x='Category', y='Value2', ax=axes[1], palette=['#00c896', '#ff6b35', '#f7931e', '#00ff88'])
+axes[1].set_title('Value2 Distribution', fontweight='bold')
+
+plt.tight_layout()
+plt.show()`,
+                
+                canvas: `# Canvas drawing example
+from js import document
+import time
+
+canvas = document.getElementById('drawing-canvas')
+ctx = canvas.getContext('2d')
+
+# Clear canvas
+ctx.clearRect(0, 0, canvas.width, canvas.height)
+
+# Draw example shapes
+ctx.fillStyle = '#00c896'
+ctx.fillRect(50, 50, 100, 100)
+
+ctx.fillStyle = '#ff6b35'
+ctx.beginPath()
+ctx.arc(250, 100, 50, 0, 2 * 3.14159)
+ctx.fill()
+
+ctx.fillStyle = '#f7931e'
+ctx.beginPath()
+ctx.moveTo(350, 50)
+ctx.lineTo(400, 150)
+ctx.lineTo(300, 150)
+ctx.closePath()
+ctx.fill()
+
+ctx.strokeStyle = '#00ff88'
+ctx.lineWidth = 3
+ctx.beginPath()
+ctx.moveTo(450, 50)
+ctx.lineTo(550, 150)
+ctx.stroke()
+
+print("Canvas drawing complete!")`,
+                
+                stats: `import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy import stats
+
+# Generate sample data
+np.random.seed(42)
+data1 = np.random.normal(50, 10, 1000)
+data2 = np.random.normal(55, 12, 1000)
+
+# Statistical analysis
+print("Statistical Analysis")
+print("=" * 50)
+print(f"Data1 - Mean: {np.mean(data1):.2f}, Std: {np.std(data1):.2f}")
+print(f"Data2 - Mean: {np.mean(data2):.2f}, Std: {np.std(data2):.2f}")
+
+# Perform t-test
+t_stat, p_value = stats.ttest_ind(data1, data2)
+print(f"\\nT-test Results:")
+print(f"T-statistic: {t_stat:.4f}")
+print(f"P-value: {p_value:.4f}")
+
+# Create visualizations
+fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+# Histogram
+axes[0, 0].hist(data1, bins=30, alpha=0.7, color='#00c896', label='Data1')
+axes[0, 0].hist(data2, bins=30, alpha=0.7, color='#ff6b35', label='Data2')
+axes[0, 0].set_title('Distribution Comparison', fontweight='bold')
+axes[0, 0].legend()
+axes[0, 0].grid(True, alpha=0.3)
+
+# Density plot
+sns.kdeplot(data=data1, ax=axes[0, 1], color='#00c896', label='Data1')
+sns.kdeplot(data=data2, ax=axes[0, 1], color='#ff6b35', label='Data2')
+axes[0, 1].set_title('Density Estimation', fontweight='bold')
+axes[0, 1].legend()
+axes[0, 1].grid(True, alpha=0.3)
+
+# Q-Q plot
+stats.probplot(data1, dist="norm", plot=axes[1, 0])
+axes[1, 0].set_title('Q-Q Plot (Data1)', fontweight='bold')
+axes[1, 0].grid(True, alpha=0.3)
+
+# Box plot comparison
+axes[1, 1].boxplot([data1, data2], labels=['Data1', 'Data2'], 
+                   patch_artist=True,
+                   boxprops=dict(facecolor='#00c896', alpha=0.7),
+                   medianprops=dict(color='#ff6b35', linewidth=2))
+axes[1, 1].set_title('Box Plot Comparison', fontweight='bold')
+axes[1, 1].grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()`
+            };
+            
+            document.getElementById('code-editor').value = examples[type];
+            switchTab('editor');
+        }
+
+        // Canvas drawing functionality
+        const canvas = document.getElementById('drawing-canvas');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+
+        canvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            ctx.beginPath();
+            ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+            const rect = canvas.getBoundingClientRect();
+            ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+            ctx.strokeStyle = '#00c896';
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            isDrawing = false;
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            isDrawing = false;
+        });
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        }
+
+        function drawExample() {
+            clearCanvas();
+            ctx.fillStyle = '#00c896';
+            ctx.fillRect(50, 50, 100, 100);
+            
+            ctx.fillStyle = '#ff6b35';
+            ctx.beginPath();
+            ctx.arc(250, 100, 50, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.fillStyle = '#f7931e';
+            ctx.beginPath();
+            ctx.moveTo(350, 50);
+            ctx.lineTo(400, 150);
+            ctx.lineTo(300, 150);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.strokeStyle = '#00ff88';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(450, 50);
+            ctx.lineTo(550, 150);
+            ctx.stroke();
+        }
+    </script>
+</body>
+</html>
