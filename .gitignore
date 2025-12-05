@@ -38,6 +38,11 @@ ENV/
 Thumbs.db
 desktop.ini
 
+# Gradle
+.gradle/
+gradle/
+*.gradle
+
 # Logs
 *.log
 
@@ -48,3 +53,8 @@ desktop.ini
 # Temporary files
 *.tmp
 *.temp
+
+# Gradle files (if present)
+.gradle/
+gradle/
+*.gradle

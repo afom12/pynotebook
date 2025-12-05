@@ -11,6 +11,12 @@
     <!-- PyScript JS -->
     <script type="module" src="https://pyscript.net/releases/2024.1.1/core.js"></script>
     
+    <!-- CodeMirror for syntax highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/python/python.min.js"></script>
+    
     <!-- Alternative PyScript CDN (backup) -->
     <script type="module">
         // Fallback if primary CDN fails
@@ -127,11 +133,51 @@
             background: var(--darker-bg);
             border: 1px solid var(--border-color);
             border-radius: 8px;
-            padding: 1rem;
             color: var(--text-primary);
             font-family: 'Courier New', monospace;
             font-size: 14px;
             resize: vertical;
+        }
+
+        .CodeMirror {
+            height: auto;
+            min-height: 300px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .CodeMirror-scroll {
+            min-height: 300px;
+        }
+
+        .editor-wrapper {
+            position: relative;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .editor-toolbar {
+            background: var(--darker-bg);
+            padding: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .editor-info {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .shortcut-hint {
+            background: rgba(0, 200, 150, 0.1);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
         }
 
         .button-group {
@@ -346,7 +392,16 @@
                 </div>
                 
                 <div id="editor-tab" class="tab-content active">
-                    <textarea id="code-editor" class="code-editor" placeholder="Enter your Python code here...">import matplotlib.pyplot as plt
+                    <div class="editor-toolbar">
+                        <div class="editor-info">
+                            <span>💾 <a href="#" onclick="saveCode(); return false;" style="color: var(--primary-color); text-decoration: none;">Save</a></span>
+                            <span>📂 <a href="#" onclick="loadCode(); return false;" style="color: var(--primary-color); text-decoration: none;">Load</a></span>
+                            <span>📥 <a href="#" onclick="exportCode(); return false;" style="color: var(--primary-color); text-decoration: none;">Export</a></span>
+                        </div>
+                        <div class="shortcut-hint">Ctrl+Enter to Run</div>
+                    </div>
+                    <div id="code-editor-wrapper" class="editor-wrapper">
+                        <textarea id="code-editor" class="code-editor" placeholder="Enter your Python code here...">import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -366,10 +421,12 @@ ax.grid(True, alpha=0.3)
 ax.legend()
 plt.tight_layout()
 plt.show()</textarea>
+                    </div>
                     <div class="button-group">
                         <button class="btn btn-primary" onclick="runCode()">▶ Run Code</button>
                         <button class="btn btn-secondary" onclick="clearOutput()">🗑 Clear</button>
                         <button class="btn btn-accent" onclick="loadExample('plot')">📊 Plot Example</button>
+                        <button class="btn btn-secondary" onclick="exportPlot()">💾 Export Plot</button>
                     </div>
                 </div>
                 
@@ -540,11 +597,28 @@ plt.show()</textarea>
                 update_status("✓ Code executed successfully!", "success")
                 
             except Exception as e:
-                error_msg = str(e)
-                output_div.innerHTML = f"<pre style='color: #ff6b35;'>Error: {error_msg}</pre>"
-                update_status(f"✗ Error: {error_msg[:50]}...", "error")
-                console.error(error_msg)
                 import traceback
+                import sys
+                exc_type, exc_value, exc_traceback = sys.exc_info()
+                
+                # Get detailed error information
+                error_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
+                error_msg = ''.join(error_lines)
+                
+                # Format error message with better styling
+                formatted_error = f"<div style='color: #ff6b35; font-weight: bold; margin-bottom: 0.5rem;'>❌ Error: {exc_type.__name__}</div>"
+                formatted_error += f"<div style='color: #ffaa88; margin-bottom: 1rem;'>{str(exc_value)}</div>"
+                formatted_error += f"<pre style='color: #ffccaa; font-size: 0.9rem; background: rgba(255, 107, 53, 0.1); padding: 1rem; border-radius: 4px; border-left: 3px solid #ff6b35;'>"
+                
+                # Add traceback with line numbers
+                for line in error_lines[-5:]:  # Show last 5 lines of traceback
+                    formatted_error += line.replace('<', '&lt;').replace('>', '&gt;')
+                
+                formatted_error += "</pre>"
+                
+                output_div.innerHTML = formatted_error
+                update_status(f"✗ Error: {exc_type.__name__}: {str(exc_value)[:40]}...", "error")
+                console.error(error_msg)
                 traceback.print_exc()
         
         # Make functions available to JS
@@ -573,14 +647,156 @@ plt.show()</textarea>
             }
         }
 
+        // CodeMirror editor instance
+        let codeEditor = null;
+
+        // Initialize CodeMirror when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            const textarea = document.getElementById('code-editor');
+            if (typeof CodeMirror !== 'undefined') {
+                codeEditor = CodeMirror.fromTextArea(textarea, {
+                    mode: 'python',
+                    theme: 'monokai',
+                    lineNumbers: true,
+                    indentUnit: 4,
+                    indentWithTabs: false,
+                    lineWrapping: true,
+                    autofocus: true,
+                    extraKeys: {
+                        "Ctrl-Enter": function() { runCode(); },
+                        "Ctrl-S": function() { saveCode(); return false; }
+                    }
+                });
+                
+                // Load saved code if available
+                const savedCode = localStorage.getItem('pynotebook_code');
+                if (savedCode) {
+                    codeEditor.setValue(savedCode);
+                }
+            }
+            
+            // Hide loading indicator when Pyodide is ready
+            setTimeout(function() {
+                const loadingIndicator = document.getElementById('loading-indicator');
+                if (loadingIndicator) {
+                    loadingIndicator.style.display = 'none';
+                }
+            }, 5000);
+        });
+        
+        // Check if Pyodide is loaded
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                const loadingText = document.getElementById('loading-text');
+                if (loadingText && typeof pyscript === 'undefined') {
+                    loadingText.textContent = 'Pyodide loading... Please wait';
+                } else if (loadingText) {
+                    loadingText.textContent = '✓ Pyodide ready!';
+                    setTimeout(function() {
+                        const loadingIndicator = document.getElementById('loading-indicator');
+                        if (loadingIndicator) {
+                            loadingIndicator.style.display = 'none';
+                        }
+                    }, 2000);
+                }
+            }, 1000);
+        });
+
+        function getCode() {
+            if (codeEditor) {
+                return codeEditor.getValue();
+            }
+            return document.getElementById('code-editor').value;
+        }
+
+        function setCode(code) {
+            if (codeEditor) {
+                codeEditor.setValue(code);
+            } else {
+                document.getElementById('code-editor').value = code;
+            }
+        }
+
         function runCode() {
-            const code = document.getElementById('code-editor').value;
+            const code = getCode();
             if (window.run_python_code) {
                 window.run_python_code(code);
             } else {
                 setTimeout(() => runCode(), 100);
             }
         }
+
+        function saveCode() {
+            const code = getCode();
+            localStorage.setItem('pynotebook_code', code);
+            const statusDiv = document.getElementById('status');
+            if (statusDiv) {
+                statusDiv.textContent = '✓ Code saved to browser storage';
+                statusDiv.className = 'status success';
+                setTimeout(() => {
+                    statusDiv.textContent = 'Ready to execute...';
+                    statusDiv.className = 'status loading';
+                }, 2000);
+            }
+        }
+
+        function loadCode() {
+            const savedCode = localStorage.getItem('pynotebook_code');
+            if (savedCode) {
+                setCode(savedCode);
+                const statusDiv = document.getElementById('status');
+                if (statusDiv) {
+                    statusDiv.textContent = '✓ Code loaded from browser storage';
+                    statusDiv.className = 'status success';
+                    setTimeout(() => {
+                        statusDiv.textContent = 'Ready to execute...';
+                        statusDiv.className = 'status loading';
+                    }, 2000);
+                }
+            } else {
+                alert('No saved code found. Save your code first!');
+            }
+        }
+
+        function exportCode() {
+            const code = getCode();
+            const blob = new Blob([code], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'pynotebook_code.py';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function exportPlot() {
+            const plotContainer = document.getElementById('plot-container');
+            const img = plotContainer.querySelector('img');
+            if (img) {
+                const a = document.createElement('a');
+                a.href = img.src;
+                a.download = 'plot.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            } else {
+                alert('No plot to export. Run code that generates a plot first!');
+            }
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                runCode();
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                e.preventDefault();
+                saveCode();
+            }
+        });
 
         function clearOutput() {
             if (window.clear_output) {
@@ -735,10 +951,119 @@ axes[1, 1].set_title('Box Plot Comparison', fontweight='bold')
 axes[1, 1].grid(True, alpha=0.3)
 
 plt.tight_layout()
+plt.show()`,
+                
+                heatmap: `import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+
+# Create correlation matrix
+np.random.seed(42)
+data = np.random.randn(100, 8)
+df = pd.DataFrame(data, columns=[f'Feature_{i+1}' for i in range(8)])
+
+# Calculate correlation matrix
+corr_matrix = df.corr()
+
+# Create heatmap
+fig, ax = plt.subplots(figsize=(10, 8))
+sns.heatmap(corr_matrix, annot=True, fmt='.2f', cmap='coolwarm', 
+            center=0, square=True, linewidths=1, cbar_kws={"shrink": 0.8},
+            ax=ax)
+ax.set_title('Correlation Heatmap', fontsize=16, fontweight='bold', pad=20)
+plt.tight_layout()
+plt.show()`,
+                
+                timeseries: `import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
+
+# Generate time series data
+np.random.seed(42)
+dates = pd.date_range(start='2023-01-01', periods=365, freq='D')
+trend = np.linspace(100, 200, 365)
+seasonal = 10 * np.sin(2 * np.pi * np.arange(365) / 365.25)
+noise = np.random.normal(0, 5, 365)
+values = trend + seasonal + noise
+
+df = pd.DataFrame({'Date': dates, 'Value': values})
+
+# Create time series plot
+fig, axes = plt.subplots(2, 1, figsize=(14, 10))
+
+# Full time series
+axes[0].plot(df['Date'], df['Value'], color='#00c896', linewidth=1.5)
+axes[0].set_title('Time Series Data (Full Year)', fontsize=14, fontweight='bold')
+axes[0].set_xlabel('Date')
+axes[0].set_ylabel('Value')
+axes[0].grid(True, alpha=0.3)
+
+# Monthly average
+df['Month'] = df['Date'].dt.month
+monthly_avg = df.groupby('Month')['Value'].mean()
+axes[1].bar(monthly_avg.index, monthly_avg.values, color='#ff6b35', alpha=0.7)
+axes[1].set_title('Monthly Average Values', fontsize=14, fontweight='bold')
+axes[1].set_xlabel('Month')
+axes[1].set_ylabel('Average Value')
+axes[1].set_xticks(range(1, 13))
+axes[1].grid(True, alpha=0.3, axis='y')
+
+plt.tight_layout()
+plt.show()`,
+                
+                ml: `import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.datasets import make_classification, make_regression
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
+
+# Generate regression dataset
+X, y = make_regression(n_samples=100, n_features=1, noise=10, random_state=42)
+
+# Split data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Train model
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# Predictions
+y_pred = model.predict(X_test)
+r2 = r2_score(y_test, y_pred)
+
+print(f"R² Score: {r2:.4f}")
+print(f"Coefficient: {model.coef_[0]:.4f}")
+print(f"Intercept: {model.intercept_:.4f}")
+
+# Visualize
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+# Training data
+axes[0].scatter(X_train, y_train, color='#00c896', alpha=0.6, label='Training Data')
+axes[0].plot(X_train, model.predict(X_train), color='#ff6b35', linewidth=2, label='Fitted Line')
+axes[0].set_title('Training Data and Model Fit', fontweight='bold')
+axes[0].set_xlabel('Feature')
+axes[0].set_ylabel('Target')
+axes[0].legend()
+axes[0].grid(True, alpha=0.3)
+
+# Test data
+axes[1].scatter(X_test, y_test, color='#00c896', alpha=0.6, label='Test Data')
+axes[1].scatter(X_test, y_pred, color='#ff6b35', marker='x', s=100, label='Predictions')
+axes[1].set_title(f'Test Data Predictions (R² = {r2:.4f})', fontweight='bold')
+axes[1].set_xlabel('Feature')
+axes[1].set_ylabel('Target')
+axes[1].legend()
+axes[1].grid(True, alpha=0.3)
+
+plt.tight_layout()
 plt.show()`
             };
             
-            document.getElementById('code-editor').value = examples[type];
+            setCode(examples[type]);
             switchTab('editor');
         }
 
